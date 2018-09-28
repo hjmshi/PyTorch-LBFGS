@@ -1,13 +1,14 @@
 """
-Full-Batch L-BFGS Implementation
+Full-Batch L-BFGS Implementation with Wolfe Line Search
 
-Demonstrates how to implement a simple full-batch L-BFGS with Armijo backtracking 
-line search to train a simple convolutional neural network using the LBFGS optimizer.
+Demonstrates how to implement a simple full-batch L-BFGS with weak Wolfe line search 
+without Powell damping to train a simple convolutional neural network using the LBFGS 
+optimizer.
 
 This implementation is CUDA-compatible.
 
 Implemented by: Hao-Jun Michael Shi and Dheevatsa Mudigere
-Last edited 9/6/18.
+Last edited 9/21/18.
 
 Requirements:
     - Keras (for CIFAR-10 dataset)
@@ -34,8 +35,8 @@ from LBFGS import LBFGS
 
 #%% Parameters for L-BFGS training
 
-max_iter = 100
-ghost_batch = 32
+max_iter = 200
+ghost_batch = 128
 
 #%% Load data
 
@@ -58,7 +59,7 @@ class ConvNet(nn.Module):
         self.conv2 = nn.Conv2d(6, 16, 5)
         self.fc1 = nn.Linear(16 * 5 * 5, 1000)
         self.fc2 = nn.Linear(1000, 10)
-        
+
     def forward(self, x):
         x = self.pool(F.relu(self.conv1(x)))
         x = self.pool(F.relu(self.conv2(x)))
@@ -68,16 +69,18 @@ class ConvNet(nn.Module):
         return x
 
 #%% Check cuda availability
-        
+
 cuda = torch.cuda.is_available()
-    
+
 #%% Create neural network model
-        
+
 if(cuda):
-    model = ConvNet().cuda() 
+    torch.cuda.manual_seed(2018)
+    model = ConvNet().cuda()
 else:
+    torch.manual_seed(2018)
     model = ConvNet()
-    
+
 #%% Define helper functions
 
 # Forward pass
@@ -97,7 +100,7 @@ accfun   = lambda op, y: np.mean(np.equal(predsfun(op), y.squeeze()))*100
 
 #%% Define optimizer
 
-optimizer = LBFGS(model.parameters(), lr=1, history_size=10, line_search='Armijo')
+optimizer = LBFGS(model.parameters(), lr=1, history_size=10, line_search='Wolfe', debug=True)
 
 #%% Main training loop
 
@@ -108,52 +111,48 @@ grad, obj = get_grad(optimizer, X_train, y_train, opfun)
 
 # main loop
 for n_iter in range(max_iter):
-                
+
     # training mode
     model.train()
-    
+
     # two-loop recursion to compute search direction
     p = optimizer.two_loop_recursion(-grad)
-            
+
     # define closure for line search
-    def closure():              
-             
+    def closure():
+
         optimizer.zero_grad()
-        
+
         if(torch.cuda.is_available()):
             loss_fn = torch.tensor(0, dtype=torch.float).cuda()
         else:
             loss_fn = torch.tensor(0, dtype=torch.float)
-        
+
         for subsmpl in np.array_split(np.arange(no_samples), max(int(no_samples/ghost_batch), 1)):
-                        
+
             ops = opfun(X_train[subsmpl])
-            
+
             if(torch.cuda.is_available()):
                 tgts = torch.from_numpy(y_train[subsmpl]).cuda().long().squeeze()
             else:
                 tgts = torch.from_numpy(y_train[subsmpl]).long().squeeze()
-                
+
             loss_fn += F.cross_entropy(ops, tgts)*(len(subsmpl)/no_samples)
-                                    
+
         return loss_fn
-                
+
     # perform line search step
-    options = {'closure': closure, 'current_loss': obj, 'eta': 2}
-    obj, lr, _, _, _ = optimizer.step(p, grad, options)
-    
-    # compute gradient at new iterate
-    obj.backward()
-    grad = optimizer._gather_flat_grad()
-    
+    options = {'closure': closure, 'current_loss': obj}
+    obj, grad, lr, _, _, _, _, _ = optimizer.step(p, grad, options=options)
+
     # curvature update
     optimizer.curvature_update(grad)
-    
+
     # compute statistics
     model.eval()
     train_loss, test_loss, test_acc = compute_stats(X_train, y_train, X_test, 
                                                     y_test, opfun, accfun, ghost_batch=128)
-            
+
     # print data
     print('Iter:',n_iter+1, 'lr:', lr, 'Training Loss:', train_loss, 
           'Test Loss:', test_loss, 'Test Accuracy:', test_acc)
