@@ -43,10 +43,11 @@ algorithm using limited memory. Whereas BFGS requires storing a dense matrix, L-
 In the deterministic or full-batch setting, L-BFGS constructs an approximation to the Hessian by collecting 
 **curvature pairs** <a href="https://www.codecogs.com/eqnedit.php?latex=(s_k,&space;y_k)" target="_blank"><img src="https://latex.codecogs.com/svg.latex?(s_k,&space;y_k)" title="(s_k, y_k)" /></a>
 defined by differences in consecutive gradients and iterates, i.e.
-<a href="https://www.codecogs.com/eqnedit.php?latex=s_k&space;=&space;x_k&space;-&space;x_{k&space;-&space;1}" target="_blank"><img src="https://latex.codecogs.com/svg.latex?s_k&space;=&space;x_k&space;-&space;x_{k&space;-&space;1}" title="s_k = x_k - x_{k - 1}" /></a>
+<a href="https://www.codecogs.com/eqnedit.php?latex=s_k&space;=&space;x_{k&space;&plus;&space;1}&space;-&space;x_k" target="_blank"><img src="https://latex.codecogs.com/svg.latex?s_k&space;=&space;x_{k&space;&plus;&space;1}&space;-&space;x_k" title="s_k = x_{k + 1} - x_k" /></a>
 and 
-<a href="https://www.codecogs.com/eqnedit.php?latex=y_k&space;=&space;\nabla&space;F(x_k)&space;-&space;\nabla&space;F(x_{k&space;-&space;1})" target="_blank"><img src="https://latex.codecogs.com/svg.latex?y_k&space;=&space;\nabla&space;F(x_k)&space;-&space;\nabla&space;F(x_{k&space;-&space;1})" title="y_k = \nabla F(x_k) - \nabla F(x_{k - 1})" /></a>
-.
+<a href="https://www.codecogs.com/eqnedit.php?latex=y_k&space;=&space;\nabla&space;F(x_{k&space;&plus;&space;1})&space;-&space;\nabla&space;F(x_k)" target="_blank"><img src="https://latex.codecogs.com/svg.latex?y_k&space;=&space;\nabla&space;F(x_{k&space;&plus;&space;1})&space;-&space;\nabla&space;F(x_k)" title="y_k = \nabla F(x_{k + 1}) - \nabla F(x_k)" /></a>
+. In our implementation, the curvature pairs are updated after an optimization step is taken (which yields 
+<a href="https://www.codecogs.com/eqnedit.php?latex=x_{k&space;&plus;&space;1}" target="_blank"><img src="https://latex.codecogs.com/svg.latex?x_{k&space;&plus;&space;1}" title="x_{k + 1}" /></a>).
 
 Note that other popular optimization methods for deep learning, such as Adam, construct diagonal scalings, whereas L-BFGS constructs a positive definite matrix for scaling the (stochastic) gradient direction.
 
@@ -74,10 +75,10 @@ in order to prevent differencing noise.
 We provide examples of two approaches for doing this:
 1. Full-Overlap: This approach simply requires us to evaluate the gradient on a sample twice at both the next and current iterate, 
 hence introducing the additional cost of a forward and backward pass over the sample at each iteration, depending on the
-line search that is used. In particular, given a sample <a href="https://www.codecogs.com/eqnedit.php?latex=S_{k&space;-&space;1}" target="_blank"><img src="https://latex.codecogs.com/svg.latex?S_{k&space;-&space;1}" title="S_{k - 1}" /></a>, we obtain 
+line search that is used. In particular, given a sample <a href="https://www.codecogs.com/eqnedit.php?latex=S_k" target="_blank"><img src="https://latex.codecogs.com/svg.latex?S_k" title="S_k" /></a>, we obtain 
 <a href="https://www.codecogs.com/eqnedit.php?latex=y_k" target="_blank"><img src="https://latex.codecogs.com/svg.latex?y_k" title="y_k" /></a> 
 by computing
-<a href="https://www.codecogs.com/eqnedit.php?latex=y_k&space;=&space;\nabla&space;F_{S_{k&space;-&space;1}}&space;(x_k)&space;-&space;\nabla&space;F_{S_{k&space;-&space;1}}(x_{k&space;-&space;1})" target="_blank"><img src="https://latex.codecogs.com/svg.latex?y_k&space;=&space;\nabla&space;F_{S_{k&space;-&space;1}}&space;(x_k)&space;-&space;\nabla&space;F_{S_{k&space;-&space;1}}(x_{k&space;-&space;1})" title="y_k = \nabla F_{S_{k - 1}} (x_k) - \nabla F_{S_{k - 1}}(x_{k - 1})" /></a>
+<a href="https://www.codecogs.com/eqnedit.php?latex=y_k&space;=&space;\nabla&space;F_{S_k}&space;(x_{k&space;&plus;&space;1})&space;-&space;\nabla&space;F_{S_k}&space;(x_k)" target="_blank"><img src="https://latex.codecogs.com/svg.latex?y_k&space;=&space;\nabla&space;F_{S_k}&space;(x_{k&space;&plus;&space;1})&space;-&space;\nabla&space;F_{S_k}&space;(x_k)" title="y_k = \nabla F_{S_k} (x_{k + 1}) - \nabla F_{S_k} (x_k)" /></a>
 .
 
 <p align="center">
@@ -85,14 +86,13 @@ by computing
 </p>
 
 2. Multi-Batch: This approach uses the difference between the gradients over the overlap between two consecutive samples 
-<a href="https://www.codecogs.com/eqnedit.php?latex=O_k&space;=&space;S_k&space;\cap&space;S_{k&space;-&space;1}" target="_blank"><img src="https://latex.codecogs.com/svg.latex?O_k&space;=&space;S_k&space;\cap&space;S_{k&space;-&space;1}" title="O_k = S_k \cap S_{k - 1}" /></a>, 
-hence not requiring any additional cost for curvature pair updating, but incurs sampling bias. This approach also suffers
-from being generally more tedious to code, although it is more efficient. In particular, given two consecutive samples 
+<a href="https://www.codecogs.com/eqnedit.php?latex=O_k&space;=&space;S_{k&space;&plus;&space;1}&space;\cap&space;S_k" target="_blank"><img src="https://latex.codecogs.com/svg.latex?O_k&space;=&space;S_{k&space;&plus;&space;1}&space;\cap&space;S_k" title="O_k = S_{k + 1} \cap S_k" /></a>, hence not requiring any additional cost for curvature pair updating, but incurs sampling bias. This approach also suffers
+from being generally more tedious to code, although it is more efficient. Note that each sample is the union of the overlap from the previous and current iteration and an additional set of samples, i.e. <a href="https://www.codecogs.com/eqnedit.php?latex=S_k&space;=&space;O_{k&space;-&space;1}&space;\cup&space;N_k&space;\cup&space;O_k" target="_blank"><img src="https://latex.codecogs.com/svg.latex?S_k&space;=&space;O_{k&space;-&space;1}&space;\cup&space;N_k&space;\cup&space;O_k" title="S_k = O_{k - 1} \cup N_k \cup O_k" /></a>. Given two consecutive samples 
 <a href="https://www.codecogs.com/eqnedit.php?latex=S_k" target="_blank"><img src="https://latex.codecogs.com/svg.latex?S_k" title="S_k" /></a>
-and <a href="https://www.codecogs.com/eqnedit.php?latex=S_{k&space;-&space;1}" target="_blank"><img src="https://latex.codecogs.com/svg.latex?S_{k&space;-&space;1}" title="S_{k - 1}" /></a>, we obtain
+and <a href="https://www.codecogs.com/eqnedit.php?latex=S_{k&space;&plus;&space;1}" target="_blank"><img src="https://latex.codecogs.com/svg.latex?S_{k&space;&plus;&space;1}" title="S_{k + 1}" /></a>, we obtain
 <a href="https://www.codecogs.com/eqnedit.php?latex=y_k" target="_blank"><img src="https://latex.codecogs.com/svg.latex?y_k" title="y_k" /></a> 
 by computing
-<a href="https://www.codecogs.com/eqnedit.php?latex=y_k&space;=&space;\nabla&space;F_{O_k}(x_k)&space;-&space;\nabla&space;F_{O_k}&space;(x_{k&space;-&space;1})" target="_blank"><img src="https://latex.codecogs.com/svg.latex?y_k&space;=&space;\nabla&space;F_{O_k}(x_k)&space;-&space;\nabla&space;F_{O_k}&space;(x_{k&space;-&space;1})" title="y_k = \nabla F_{O_k}(x_k) - \nabla F_{O_k} (x_{k - 1})" /></a>
+<a href="https://www.codecogs.com/eqnedit.php?latex=y_k&space;=&space;\nabla&space;F_{O_k}(x_{k&space;&plus;&space;1})&space;-&space;\nabla&space;F_{O_k}&space;(x_k)" target="_blank"><img src="https://latex.codecogs.com/svg.latex?y_k&space;=&space;\nabla&space;F_{O_k}(x_{k&space;&plus;&space;1})&space;-&space;\nabla&space;F_{O_k}&space;(x_k)" title="y_k = \nabla F_{O_k}(x_{k + 1}) - \nabla F_{O_k} (x_k)" /></a>
 . In `multi_batch_lbfgs_example.py`, the variable `g_Ok` denotes 
 <a href="https://www.codecogs.com/eqnedit.php?latex=\nabla&space;F_{O_k}&space;(x_k)" target="_blank"><img src="https://latex.codecogs.com/svg.latex?\nabla&space;F_{O_k}&space;(x_k)" title="\nabla F_{O_k} (x_k)" /></a> 
 and the variable `g_Ok_prev` represents
@@ -159,6 +159,7 @@ In maintaining this module, we are working to add the following features:
 * Wrappers for specific optimizers developed in various papers.
 * Using Hessian-vector products for computing curvature pairs.
 * More sophisticated stochastic line searches.
+* Easy parallelization of L-BFGS methods.
 
 ## Acknowledgements
 Thanks to Raghu Bollapragada, Jorge Nocedal, and Yuchen Xie for feedback on the details of this implementation, and Kenjy Demeester, Jaroslav Fowkes, and Dominique Orban for help on installing CUTEst and its Python interface for testing the implementation.
