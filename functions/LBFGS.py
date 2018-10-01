@@ -61,8 +61,17 @@ def polyinterp(points, x_min_bound=None, x_max_bound=None, plot=False):
         # Solution to quadratic interpolation is given by:
         # a = -(f1 - f2 - g1(x1 - x2))/(x1 - x2)^2
         # x_min = x1 - g1/(2a)
-        a = -(points[0, 1] - points[1, 1] - points[0, 2]*(points[0, 0] - points[1, 0]))/(points[0, 0] - points[1, 0])**2
-        x_sol = points[0, 0] - points[0, 2]/(2*a)
+        # if x1 = 0, then is given by:
+        # x_min = - (g1*x2^2)/(2(f2 - f1 - g1*x2))
+
+        if(points[0, 0] == 0):
+            x_sol = -points[0, 2]*points[1, 0]**2/(2*(points[1, 1] - points[0, 1] - points[0, 2]*points[1, 0]))
+        else:
+            a = -(points[0, 1] - points[1, 1] - points[0, 2]*(points[0, 0] - points[1, 0]))/(points[0, 0] - points[1, 0])**2
+            x_sol = points[0, 0] - points[0, 2]/(2*a)
+
+        print(x_sol)
+
         x_sol = np.minimum(np.maximum(x_min_bound, x_sol), x_max_bound)
 
     # explicit formula for cubic interpolation
@@ -532,7 +541,7 @@ class LBFGS(Optimizer):
             fail = False # failure flag
             
             # check if search direction is descent direction
-            if gtd > 0:
+            if gtd >= 0:
                 desc_dir = False
                 if debug:
                     print('Not a descent direction!')
@@ -673,7 +682,7 @@ class LBFGS(Optimizer):
             fail = False
 
             # check if search direction is descent direction
-            if gtd > 0:
+            if gtd >= 0:
                 desc_dir = False
                 if debug:
                     print('Not a descent direction!')
