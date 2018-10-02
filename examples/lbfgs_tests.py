@@ -34,7 +34,7 @@ from LBFGS import LBFGS
 
 # parse problem
 parser = argparse.ArgumentParser(description='Run L-BFGS on CUTEst problems.')
-parser.add_argument('--problemName', type=str, default='ALL',
+parser.add_argument('--problemName', type=str, default='L-BFGS',
                     help='CUTEst problem to be solved')
 parser.add_argument('--N', type=int, default=0, help='Problem dimension')
 args = parser.parse_args()
@@ -44,7 +44,7 @@ problemName = args.problemName
 max_iter = 1000
 tol = 1e-3
 line_search = 'Wolfe'
-interpolate = False
+interpolate = True
 max_ls = 100
 history_size = 10
 out = True
@@ -75,7 +75,7 @@ else:
     Ns = {problemName: args.N}
 
 #%% Print problem parameters and properties
-if problemName != 'ALL' and problemName != 'L-BFGS-B':
+if problemName != 'ALL' and problemName != 'L-BFGS':
     pycutest.print_available_sif_params(problemName)
     print(pycutest.problem_properties(problemName))
 else:

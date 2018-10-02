@@ -70,8 +70,6 @@ def polyinterp(points, x_min_bound=None, x_max_bound=None, plot=False):
             a = -(points[0, 1] - points[1, 1] - points[0, 2]*(points[0, 0] - points[1, 0]))/(points[0, 0] - points[1, 0])**2
             x_sol = points[0, 0] - points[0, 2]/(2*a)
 
-        print(x_sol)
-
         x_sol = np.minimum(np.maximum(x_min_bound, x_sol), x_max_bound)
 
     # explicit formula for cubic interpolation
@@ -405,6 +403,7 @@ class LBFGS(Optimizer):
             'c1' (float): sufficient decrease constant in (0, 1) (default: 1e-4)
             'c2' (float): curvature condition constant in (0, 1) (default: 0.9)
             'max_ls' (int): maximum number of line search steps permitted (default: 10)
+            'interpolate' (bool): flag for using interpolation (default: True)
 
         Outputs (depends on line search):
           . No line search:
@@ -668,6 +667,11 @@ class LBFGS(Optimizer):
                 else:
                     max_ls = options['max_ls']
 
+                if('interpolate' not in options.keys()):
+                    interpolate = True
+                else:
+                    interpolate = options['interpolate']
+
             else:
                 raise(ValueError('Options are not specified.'))
 
@@ -680,6 +684,18 @@ class LBFGS(Optimizer):
             alpha = 0
             beta = float('Inf')
             fail = False
+
+            # initialize values for line search
+            if(interpolate):
+                F_a = F_k
+                g_a = gtd
+
+                if(torch.cuda.is_available()):
+                    F_b = torch.tensor(np.nan, dtype=torch.float).cuda()
+                    g_b = torch.tensor(np.nan, dtype=torch.float).cuda()
+                else:
+                    F_b = torch.tensor(np.nan, dtype=torch.float)
+                    g_b = torch.tensor(np.nan, dtype=torch.float)
 
             # check if search direction is descent direction
             if gtd >= 0:
@@ -715,6 +731,14 @@ class LBFGS(Optimizer):
                     # set upper bound
                     beta = t
                     t_prev = t
+                    
+                    # update interpolation quantities
+                    if(interpolate):
+                        F_b = F_new
+                        if(torch.cuda.is_available()):
+                            g_b = torch.tensor(np.nan, dtype=torch.float).cuda()
+                        else:
+                            g_b = torch.tensor(np.nan, dtype=torch.float)
 
                 else:
 
@@ -722,23 +746,48 @@ class LBFGS(Optimizer):
                     F_new.backward()
                     g_new = self._gather_flat_grad()
                     grad_eval += 1
+                    gtd_new = g_new.dot(d)
                     
                     # check curvature condition
-                    if(g_new.dot(d) < c2*gtd):
+                    if(gtd_new < c2*gtd):
 
                         # set lower bound
                         alpha = t
                         t_prev = t
 
+                        # update interpolation quantities
+                        if(interpolate):
+                            F_a = F_new
+                            g_a = gtd_new
+
                     else:
                         break
 
                 # compute new steplength
-                if(beta == float('Inf')):
-                    t = eta*t
-                else:
-                    t = (alpha + beta)/2.0
                 
+                # if first step or not interpolating, then bisect or multiply by factor
+                if(not interpolate or not is_legal(F_b)):
+                    if(beta == float('Inf')):
+                        t = eta*t
+                    else:
+                        t = (alpha + beta)/2.0
+
+                # otherwise interpolate between a and b
+                else:
+                    t = polyinterp(np.array([[alpha, F_a.item(), g_a.item()],[beta, F_b.item(), g_b.item()]]))
+
+                    # if values are too extreme, adjust t
+                    if(beta == float('Inf')):
+                        if(t > 2*eta*t_prev):
+                            t = 2*eta*t_prev
+                        elif(t < eta*t_prev):
+                            t = eta*t_prev
+                    else:
+                        if(t < alpha + 0.2*(beta - alpha)):
+                            t = alpha + 0.2*(beta - alpha)
+                        elif(t > (beta - alpha)/2.0):
+                            t = (beta - alpha)/2.0
+
                 # update parameters
                 self._add_update(t - t_prev, d)
 
