@@ -159,7 +159,7 @@ class LBFGS(Optimizer):
     and Michael Overton's weak Wolfe line search MATLAB code.
 
     Implemented by: Hao-Jun Michael Shi and Dheevatsa Mudigere
-    Last edited 9/24/18.
+    Last edited 10/16/18.
 
     Warnings:
       . Does not support per-parameter options and parameter groups.
@@ -174,7 +174,7 @@ class LBFGS(Optimizer):
                 'Armijo': uses Armijo backtracking line search
                 'Wolfe': uses Armijo-Wolfe bracketing line search
         debug (bool): debugging mode
-    
+
     References:
     [1] Berahas, Albert S., Jorge Nocedal, and Martin Takác. "A Multi-Batch L-BFGS 
         Method for Machine Learning." Advances in Neural Information Processing 
@@ -196,7 +196,16 @@ class LBFGS(Optimizer):
 
     """
 
-    def __init__(self, params, lr=1, history_size=10, line_search='Wolfe', debug=False):
+    def __init__(self, params, lr=1, history_size=10, line_search='Wolfe',  debug=False):
+
+        # ensure inputs are valid
+        if not 0.0 <= lr:
+            raise ValueError("Invalid learning rate: {}".format(lr))
+        if not 0 <= history_size:
+            raise ValueError("Invalid history size: {}".format(history_size))
+        if line_search not in ['Armijo', 'Wolfe', 'None']:
+            raise ValueError("Invalid line search: {}".format(line_search))
+
         defaults = dict(lr=lr, history_size=history_size, line_search=line_search, 
                         debug=debug)
         super(LBFGS, self).__init__(params, defaults)
