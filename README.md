@@ -183,5 +183,7 @@ Thanks to Raghu Bollapragada, Jorge Nocedal, and Yuchen Xie for feedback on the 
     Optimization." SIAM Journal on Optimization 27.2 (2017): 927-956.
 
 
-## Questions or Suggestions?
-Please use the Issues tab on the Github repository. Any suggestions on improving the modules are welcome!
+## Feedback, Questions, or Suggestions?
+We are looking for feedback on the code! If you'd like to share your experience with using this module, please let us know here: https://discuss.pytorch.org/t/feedback-on-pytorch-l-bfgs-implementation/26678. 
+
+For more technical issues, questions, or suggestions, please use the Issues tab on the Github repository. Any suggestions on improving the modules are always welcome!
