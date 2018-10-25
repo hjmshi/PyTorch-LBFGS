@@ -19,7 +19,7 @@ Run Command:
 """
 
 import sys
-sys.path.append('../functions/')
+sys.path.append('../../functions/')
 
 import torch
 import torch.optim

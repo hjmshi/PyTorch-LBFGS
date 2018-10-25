@@ -1,10 +1,10 @@
 """
-Full-Overlap L-BFGS Implementation with Stochastic Wolfe Line Search
+Full-Overlap L-BFGS Implementation with Stochastic Armijo Backtracking Line Search
 
-Demonstrates how to implement full-overlap L-BFGS with stochastic weak Wolfe line
-search without Powell damping to train a simple convolutional neural network using the 
-LBFGS optimizer. Full-overlap L-BFGS is a stochastic quasi-Newton method that uses 
-the same sample as the one used in the stochastic gradient to perform quasi-Newton 
+Demonstrates how to implement full-overlap L-BFGS with stochastic Armijo backtracking
+line search and Powell damping to train a simple convolutional neural network using 
+the LBFGS optimizer. Full-overlap L-BFGS is a stochastic quasi-Newton method that 
+uses the same sample as the one used in the stochastic gradient to perform quasi-Newton 
 updating, then resamples an entirely independent new sample in the next iteration.
 
 This implementation is CUDA-compatible.
@@ -26,7 +26,7 @@ Based on stable quasi-Newton updating introduced by Schraudolph, Yu, and Gunter 
 """
 
 import sys
-sys.path.append('../functions/')
+sys.path.append('../../functions/')
 
 import numpy as np
 import torch
@@ -106,7 +106,7 @@ accfun   = lambda op, y: np.mean(np.equal(predsfun(op), y.squeeze()))*100
 
 #%% Define optimizer
 
-optimizer = LBFGS(model.parameters(), lr=1, history_size=10, line_search='Wolfe', debug=True)
+optimizer = LBFGS(model.parameters(), lr=1, history_size=10, line_search='Armijo', debug=True)
 
 #%% Main training loop
 
@@ -150,11 +150,15 @@ for n_iter in range(max_iter):
         return loss_fn
     
     # perform line search step
-    options = {'closure': closure, 'current_loss': obj}
-    obj, grad, lr, _, _, _, _, _ = optimizer.step(p, grad, options=options)
+    options = {'closure': closure, 'current_loss': obj, 'interpolate': True}
+    obj, lr, _, _, _, _ = optimizer.step(p, grad, options=options)
         
+    # compute gradient
+    obj.backward()
+    grad = optimizer._gather_flat_grad()
+    
     # curvature update
-    optimizer.curvature_update(grad)
+    optimizer.curvature_update(grad, eps=0.2, damping=True)
     
     # compute statistics
     model.eval()

@@ -1,10 +1,11 @@
 """
-Multi-Batch L-BFGS Implementation with Fixed Steplength
+Full-Overlap L-BFGS Implementation with Stochastic Wolfe Line Search
 
-Demonstrates how to implement multi-batch L-BFGS with fixed steplength and Powell 
-damping to train a simple convolutional neural network using the LBFGS optimizer. 
-Multi-batch L-BFGS is a stochastic quasi-Newton method that performs curvature 
-pair updates over the overlap between consecutive samples in the stochastic gradient.
+Demonstrates how to implement full-overlap L-BFGS with stochastic weak Wolfe line
+search without Powell damping to train a simple convolutional neural network using the 
+LBFGS optimizer. Full-overlap L-BFGS is a stochastic quasi-Newton method that uses 
+the same sample as the one used in the stochastic gradient to perform quasi-Newton 
+updating, then resamples an entirely independent new sample in the next iteration.
 
 This implementation is CUDA-compatible.
 
@@ -17,15 +18,15 @@ Requirements:
     - PyTorch
 
 Run Command:
-    python multi_batch_lbfgs_example.py
+    python full_overlap_lbfgs_example.py
 
-Based on stable quasi-Newton updating introduced by Berahas, Nocedal, and Takac in
-"A Multi-Batch L-BFGS Method for Machine Learning" (2016)
+Based on stable quasi-Newton updating introduced by Schraudolph, Yu, and Gunter in
+"A Stochastic Quasi-Newton Method for Online Convex Optimization" (2007)
 
 """
 
 import sys
-sys.path.append('../functions/')
+sys.path.append('../../functions/')
 
 import numpy as np
 import torch
@@ -39,11 +40,9 @@ from LBFGS import LBFGS
 
 #%% Parameters for L-BFGS training
 
-max_iter = 200                      # note each iteration is NOT an epoch
+max_iter = 200
 ghost_batch = 128
 batch_size = 8192
-overlap_ratio = 0.25                # should be in (0, 0.5)
-lr = 1
 
 #%% Load data
 
@@ -107,17 +106,9 @@ accfun   = lambda op, y: np.mean(np.equal(predsfun(op), y.squeeze()))*100
 
 #%% Define optimizer
 
-optimizer = LBFGS(model.parameters(), lr=lr, history_size=10, line_search='None', debug=True)
+optimizer = LBFGS(model.parameters(), lr=1, history_size=10, line_search='Wolfe', debug=True)
 
 #%% Main training loop
-
-Ok_size = int(overlap_ratio*batch_size)
-Nk_size = int((1 - 2*overlap_ratio)*batch_size)
-
-# sample previous overlap gradient
-random_index = np.random.permutation(range(X_train.shape[0]))
-Ok_prev = random_index[0:Ok_size]
-g_Ok_prev, obj_Ok_prev = get_grad(optimizer, X_train[Ok_prev], y_train[Ok_prev], opfun)
 
 # main loop
 for n_iter in range(max_iter):
@@ -125,32 +116,45 @@ for n_iter in range(max_iter):
     # training mode
     model.train()
     
-    # sample current non-overlap and next overlap gradient
+    # sample batch
     random_index = np.random.permutation(range(X_train.shape[0]))
-    Ok = random_index[0:Ok_size]
-    Nk = random_index[Ok_size:(Ok_size + Nk_size)]
+    Sk = random_index[0:batch_size]
     
-    # compute overlap gradient and objective
-    g_Ok, obj_Ok = get_grad(optimizer, X_train[Ok], y_train[Ok], opfun)
+    # compute initial gradient and objective
+    grad, obj = get_grad(optimizer, X_train[Sk], y_train[Sk], opfun)
     
-    # compute non-overlap gradient and objective
-    g_Nk, obj_Nk = get_grad(optimizer, X_train[Nk], y_train[Nk], opfun)
-    
-    # compute accumulated gradient over sample
-    g_Sk = overlap_ratio*(g_Ok_prev + g_Ok) + (1 - 2*overlap_ratio)*g_Nk
-        
     # two-loop recursion to compute search direction
-    p = optimizer.two_loop_recursion(-g_Sk)
+    p = optimizer.two_loop_recursion(-grad)
+            
+    # define closure for line search
+    def closure():              
+        
+        optimizer.zero_grad()
+        
+        if(torch.cuda.is_available()):
+            loss_fn = torch.tensor(0, dtype=torch.float).cuda()
+        else:
+            loss_fn = torch.tensor(0, dtype=torch.float)
+        
+        for subsmpl in np.array_split(Sk, max(int(batch_size/ghost_batch), 1)):
+                        
+            ops = opfun(X_train[subsmpl])
+            
+            if(torch.cuda.is_available()):
+                tgts = torch.from_numpy(y_train[subsmpl]).cuda().long().squeeze()
+            else:
+                tgts = torch.from_numpy(y_train[subsmpl]).long().squeeze()
                 
+            loss_fn += F.cross_entropy(ops, tgts)*(len(subsmpl)/batch_size)
+                        
+        return loss_fn
+    
     # perform line search step
-    lr = optimizer.step(p, g_Ok, g_Sk=g_Sk)
-    
-    # compute previous overlap gradient for next sample
-    Ok_prev = Ok
-    g_Ok_prev, obj_Ok_prev = get_grad(optimizer, X_train[Ok_prev], y_train[Ok_prev], opfun)
-    
+    options = {'closure': closure, 'current_loss': obj}
+    obj, grad, lr, _, _, _, _, _ = optimizer.step(p, grad, options=options)
+        
     # curvature update
-    optimizer.curvature_update(g_Ok_prev, eps=0.2, damping=True)
+    optimizer.curvature_update(grad)
     
     # compute statistics
     model.eval()
