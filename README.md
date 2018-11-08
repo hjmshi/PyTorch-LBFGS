@@ -114,13 +114,14 @@ the power of line searches in machine learning have generally been overlooked du
 To overcome these issues, **stochastic** or **probabilistic line searches** have been developed to determine steplengths in
 the noisy setting.
 
-We provide three basic (stochastic) line searches that may be used in conjunction with L-BFGS in the step function:
+We provide four basic (stochastic) line searches that may be used in conjunction with L-BFGS in the step function:
 1. (Stochastic) Armijo Backtracking Line Search: Ensures that the Armijo or sufficient decrease condition is satisfied on the function evaluated by the `closure()` function by backtracking from each trial point by multiplying by a constant factor less than 1. 
 2. (Stochastic) Armijo Backtracking Line Search with Cubic Interpolation: Similar to the basic backtracking line search
 but utilizes a quadratic or cubic interpolation to determine the next trial. This is based on Mark Schmidt's minFunc
 MATLAB code.
 3. (Stochastic) Weak Wolfe Line Search: Based on Michael Overton's weak Wolfe line search implementation in MATLAB, ensures 
 that both the sufficient decrease condition and curvature condition are satisfied on the function evaluated by the `closure()` function by performing a bisection search. 
+4. (Stochastic) Weak Wolfe Line Search with Cubic Interpolation: Similar to the weak Wolfe line search but utilizes quadratic interpolation to determine the next trial when backtracking. 
 
 **Note:** For quasi-Newton algorithms, the weak Wolfe line search, although immensely simple, gives similar performance to the strong Wolfe line search, a more complex line search algorithm that utilizes a bracketing and zoom phase, for smooth, nonlinear optimization. In the nonsmooth setting, the weak Wolfe line search (not the strong Wolfe line search) is essential for quasi-Newton algorithms. For these reasons, we only implement a weak Wolfe line search here.
 

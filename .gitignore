@@ -26,6 +26,10 @@
 *.sql
 *.sqlite
 
+# Datasets #
+############
+*.mat
+
 # OS generated files #
 ######################
 .DS_Store
