@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 from functools import reduce
+from copy import deepcopy
 from torch.optim import Optimizer
 
 #%% Helper Functions for L-BFGS
@@ -253,6 +254,18 @@ class LBFGS(Optimizer):
             offset += numel
         assert offset == self._numel()
 
+    def _copy_params(self):
+        current_params = []
+        for param in self._params():
+            current_params.append(deepcopy(param.data))
+        return current_params
+
+    def _load_params(self, current_params):
+        i = 0
+        for param in self._params():
+            param.data[:] = current_params[i]
+            i += 1
+
     def two_loop_recursion(self, vec):
         """
         Performs two-loop recursion on given vector to obtain Hv.
@@ -403,6 +416,7 @@ class LBFGS(Optimizer):
             'c1' (tensor): sufficient decrease constant in (0, 1) (default: 1e-4)
             'max_ls' (int): maximum number of line search steps permitted (default: 10)
             'interpolate' (bool): flag for using interpolation (default: True)
+            'inplace' (bool): flag for inplace operations (default: True)
 
         Options for Wolfe line search:
             'closure' (callable): reevaluates model and returns function value
@@ -413,6 +427,7 @@ class LBFGS(Optimizer):
             'c2' (float): curvature condition constant in (0, 1) (default: 0.9)
             'max_ls' (int): maximum number of line search steps permitted (default: 10)
             'interpolate' (bool): flag for using interpolation (default: True)
+            'inplace' (bool): flag for inplace operations (default: True)
 
         Outputs (depends on line search):
           . No line search:
@@ -472,37 +487,37 @@ class LBFGS(Optimizer):
 
         # set search direction
         d = p_k
-        
+
         # modify previous gradient
         if prev_flat_grad is None:
             prev_flat_grad = g_Ok.clone()
         else:
             prev_flat_grad.copy_(g_Ok)
-        
+
         # set initial step size
         t = lr
 
         # closure evaluation counter
         closure_eval = 0
-        
+
         if g_Sk is None:
             g_Sk = g_Ok.clone()
-                        
+
         # perform Armijo backtracking line search
         if(line_search == 'Armijo'):
-                        
+
             # load options
             if(options):
                 if('closure' not in options.keys()):
                     raise(ValueError('closure option not specified.'))
                 else:
                     closure = options['closure']
-                
+
                 if('gtd' not in options.keys()):
                     gtd = g_Ok.dot(d)
                 else:
                     gtd = options['gtd']
-                                    
+
                 if('current_loss' not in options.keys()):
                     F_k = closure()
                     closure_eval += 1
@@ -535,19 +550,25 @@ class LBFGS(Optimizer):
                 else:
                     interpolate = options['interpolate']
 
+                if('inplace' not in options.keys()):
+                    inplace = True
+                else:
+                    inplace = options['inplace']
+
             else:
-                raise(ValueError('Options are not specified. Need closure, current_loss, gtd, eta, c1, and max_ls.'))
-                            
+                raise(ValueError('Options are not specified; need closure evaluating function.'))
+
             # initialize values
             if(interpolate):
                 if(torch.cuda.is_available()):
                     F_prev = torch.tensor(np.nan, dtype=torch.float).cuda()
                 else:
                     F_prev = torch.tensor(np.nan, dtype=torch.float)
+
             ls_step = 0
             t_prev = 0 # old steplength
             fail = False # failure flag
-            
+
             # check if search direction is descent direction
             if gtd >= 0:
                 desc_dir = False
@@ -555,6 +576,10 @@ class LBFGS(Optimizer):
                     print('Not a descent direction!')
             else:
                 desc_dir = True
+
+            # store values if not in-place
+            if not inplace:
+                current_params = self._copy_params()
 
             # update and evaluate at new point
             self._add_update(t, d)
@@ -566,7 +591,11 @@ class LBFGS(Optimizer):
 
                 # check if maximum number of iterations reached
                 if(ls_step >= max_ls):
-                    self._add_update(-t, d)
+                    if inplace:
+                        self._add_update(-t, d)
+                    else:
+                        self._load_params(current_params)
+
                     t = 0
                     F_new = closure()
                     closure_eval += 1
@@ -595,18 +624,23 @@ class LBFGS(Optimizer):
                                                 [t_prev, F_prev.item(), np.nan]]))
 
                     # if values are too extreme, adjust t
-                    if(t < 1e-3*t_new):
-                        t = 1e-3*t_new
-                    elif(t > 0.6*t_new):
-                        t = 0.6*t_new
-
-                    # store old point
                     if(interpolate):
+                        if(t < 1e-3*t_new):
+                            t = 1e-3*t_new
+                        elif(t > 0.6*t_new):
+                            t = 0.6*t_new
+
+                        # store old point
                         F_prev = F_new
                         t_prev = t_new
 
                     # update iterate and reevaluate
-                    self._add_update(t-t_new, d)
+                    if inplace:
+                        self._add_update(t-t_new, d)
+                    else:
+                        self._load_params(current_params)
+                        self._add_update(t, d)
+
                     F_new = closure()
                     closure_eval += 1
                     ls_step += 1 # iterate
@@ -616,7 +650,7 @@ class LBFGS(Optimizer):
                 Bs = (g_Sk.mul(-t)).clone()
             else:
                 Bs.copy_(g_Sk.mul(-t))
-            
+
             state['d'] = d
             state['prev_flat_grad'] = prev_flat_grad
             state['t'] = t
@@ -624,7 +658,7 @@ class LBFGS(Optimizer):
             state['fail'] = fail
 
             return F_new, t, ls_step, closure_eval, desc_dir, fail
-        
+
         # perform weak Wolfe line search
         elif(line_search == 'Wolfe'):
 
@@ -681,8 +715,13 @@ class LBFGS(Optimizer):
                 else:
                     interpolate = options['interpolate']
 
+                if('inplace' not in options.keys()):
+                    inplace = True
+                else:
+                    inplace = options['inplace']
+
             else:
-                raise(ValueError('Options are not specified.'))
+                raise(ValueError('Options are not specified; need closure evaluating function.'))
 
             # initialize counters
             ls_step = 0
@@ -714,6 +753,10 @@ class LBFGS(Optimizer):
             else:
                 desc_dir = True
 
+            # store values if not in-place
+            if not inplace:
+                current_params = self._copy_params()
+
             # update and evaluate at new point
             self._add_update(t, d)
             F_new = closure()
@@ -724,7 +767,11 @@ class LBFGS(Optimizer):
 
                 # check if maximum number of line search steps have been reached
                 if(ls_step >= max_ls):
-                    self._add_update(-t, d)
+                    if inplace:
+                        self._add_update(-t, d)
+                    else:
+                        self._load_params(current_params)
+
                     t = 0
                     F_new = closure()
                     F_new.backward()
@@ -733,14 +780,14 @@ class LBFGS(Optimizer):
                     grad_eval += 1
                     fail = True
                     break
-                
+
                 # check Armijo condition
                 if(F_new > F_k + c1*t*gtd):
 
                     # set upper bound
                     beta = t
                     t_prev = t
-                    
+
                     # update interpolation quantities
                     if(interpolate):
                         F_b = F_new
@@ -756,7 +803,7 @@ class LBFGS(Optimizer):
                     g_new = self._gather_flat_grad()
                     grad_eval += 1
                     gtd_new = g_new.dot(d)
-                    
+
                     # check curvature condition
                     if(gtd_new < c2*gtd):
 
@@ -773,7 +820,7 @@ class LBFGS(Optimizer):
                         break
 
                 # compute new steplength
-                
+
                 # if first step or not interpolating, then bisect or multiply by factor
                 if(not interpolate or not is_legal(F_b)):
                     if(beta == float('Inf')):
@@ -798,19 +845,23 @@ class LBFGS(Optimizer):
                             t = (beta - alpha)/2.0
 
                 # update parameters
-                self._add_update(t - t_prev, d)
+                if inplace:
+                    self._add_update(t - t_prev, d)
+                else:
+                    self._copy_params(current_params)
+                    self._add_update(t, d)
 
                 # evaluate closure
                 F_new = closure()
                 closure_eval += 1
                 ls_step += 1
-                
+
             # store Bs
             if Bs is None:
                 Bs = (g_Sk.mul(-t)).clone()
             else:
                 Bs.copy_(g_Sk.mul(-t))
-            
+
             state['d'] = d
             state['prev_flat_grad'] = prev_flat_grad
             state['t'] = t
@@ -820,10 +871,10 @@ class LBFGS(Optimizer):
             return F_new, g_new, t, ls_step, closure_eval, grad_eval, desc_dir, fail
 
         else:
-            
+
             # perform update
             self._add_update(t, d)
-            
+
             # store Bs
             if Bs is None:
                 Bs = (g_Sk.mul(-t)).clone()
@@ -835,5 +886,5 @@ class LBFGS(Optimizer):
             state['t'] = t
             state['Bs'] = Bs
             state['fail'] = False
-            
+
             return t
