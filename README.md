@@ -131,6 +131,9 @@ To use these, when defining the optimizer, the user can specify the line search 
 The user must then define the `options` (typically a closure for reevaluating the model and loss) passed to the step function 
 to perform the line search. The `lr` parameter defines the initial steplength in the line search algorithm.
 
+We also provide a `inplace` toggle in the `options` to determine whether or not the variables are updated in-place in the line searches. In-place updating is faster but less numerically accurate than storing the current iterate and reloading after each trial in the
+line search.
+
 ### 3. Curvature Pair Rejection Criterion and Powell Damping
 Another key for L-BFGS is to determine when the history used in constructing the L-BFGS matrix is updated. In particular,
 one needs to ensure that the matrix remains positive definite. Existing implementations of L-BFGS have generally checked if

@@ -135,7 +135,7 @@ for problemName in sorted(problems):
             return loss_fn
 
         # perform line search step
-        options = {'closure': closure, 'current_loss': obj, 'eta': 2, 'max_ls': max_ls, 'interpolate': interpolate}
+        options = {'closure': closure, 'current_loss': obj, 'eta': 2, 'max_ls': max_ls, 'interpolate': interpolate, 'inplace': False}
         if(line_search == 'Armijo'):
             obj, lr, backtracks, clos_evals, desc_dir, fail = optimizer.step(p, grad, options=options)
 

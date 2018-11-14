@@ -256,13 +256,13 @@ class LBFGS(Optimizer):
 
     def _copy_params(self):
         current_params = []
-        for param in self._params():
+        for param in self._params:
             current_params.append(deepcopy(param.data))
         return current_params
 
     def _load_params(self, current_params):
         i = 0
-        for param in self._params():
+        for param in self._params:
             param.data[:] = current_params[i]
             i += 1
 
@@ -848,7 +848,7 @@ class LBFGS(Optimizer):
                 if inplace:
                     self._add_update(t - t_prev, d)
                 else:
-                    self._copy_params(current_params)
+                    self._load_params(current_params)
                     self._add_update(t, d)
 
                 # evaluate closure
