@@ -160,7 +160,7 @@ class LBFGS(Optimizer):
     and Michael Overton's weak Wolfe line search MATLAB code.
 
     Implemented by: Hao-Jun Michael Shi and Dheevatsa Mudigere
-    Last edited 10/16/18.
+    Last edited 11/15/18.
 
     Warnings:
       . Does not support per-parameter options and parameter groups.
@@ -184,15 +184,19 @@ class LBFGS(Optimizer):
         Learning." International Conference on Machine Learning. 2018.
     [3] Lewis, Adrian S., and Michael L. Overton. "Nonsmooth Optimization via Quasi-Newton
         Methods." Mathematical Programming 141.1-2 (2013): 135-163.
-    [4] Nocedal, Jorge, and Stephen J. Wright. "Numerical Optimization." Springer New York,
+    [4] Liu, Dong C., and Jorge Nocedal. "On the Limited Memory BFGS Method for 
+        Large Scale Optimization." Mathematical Programming 45.1-3 (1989): 503-528.
+    [5] Nocedal, Jorge. "Updating Quasi-Newton Matrices With Limited Storage." 
+        Mathematics of Computation 35.151 (1980): 773-782.
+    [6] Nocedal, Jorge, and Stephen J. Wright. "Numerical Optimization." Springer New York,
         2006.
-    [5] Schmidt, Mark. "minFunc: Unconstrained Differentiable Multivariate Optimization 
+    [7] Schmidt, Mark. "minFunc: Unconstrained Differentiable Multivariate Optimization 
         in Matlab." Software available at http://www.cs.ubc.ca/~schmidtm/Software/minFunc.html 
         (2005).
-    [6] Schraudolph, Nicol N., Jin Yu, and Simon Günter. "A Stochastic Quasi-Newton 
+    [8] Schraudolph, Nicol N., Jin Yu, and Simon Günter. "A Stochastic Quasi-Newton 
         Method for Online Convex Optimization." Artificial Intelligence and Statistics. 
         2007.
-    [7] Wang, Xiao, et al. "Stochastic Quasi-Newton Methods for Nonconvex Stochastic 
+    [9] Wang, Xiao, et al. "Stochastic Quasi-Newton Methods for Nonconvex Stochastic 
         Optimization." SIAM Journal on Optimization 27.2 (2017): 927-956.
 
     """
@@ -395,7 +399,7 @@ class LBFGS(Optimizer):
 
         return
 
-    def step(self, p_k, g_Ok, g_Sk=None, options={}):
+    def _step(self, p_k, g_Ok, g_Sk=None, options={}):
         """
         Performs a single optimization step.
 
@@ -888,3 +892,132 @@ class LBFGS(Optimizer):
             state['fail'] = False
 
             return t
+        
+    def step(self, p_k, g_Ok, g_Sk=None, options={}):
+        return self._step(self, p_k, g_Ok, g_Sk=None, options={})
+
+#%% Full-Batch (Deterministic) L-BFGS Optimizer (Wrapper)
+
+class FullBatchLBFGS(LBFGS):
+    """
+    Implements full-batch or deterministic L-BFGS algorithm. Compatible with
+    Powell damping. Can be used when evaluating a deterministic function and
+    gradient. Wraps the LBFGS optimizer. Performs the two-loop recursion,
+    updating, and curvature updating in a single step.
+
+    Implemented by: Hao-Jun Michael Shi and Dheevatsa Mudigere
+    Last edited 11/15/18.
+
+    Warnings:
+      . Does not support per-parameter options and parameter groups.
+      . All parameters have to be on a single device.
+
+    Inputs:
+        lr (float): steplength or learning rate (default: 1)
+        history_size (int): update history size (default: 10)
+        line_search (str): designates line search to use (default: 'Wolfe')
+            Options:
+                'None': uses steplength designated in algorithm
+                'Armijo': uses Armijo backtracking line search
+                'Wolfe': uses Armijo-Wolfe bracketing line search
+        debug (bool): debugging mode
+
+    """
+
+    def __init__(self, params, lr=1, history_size=10, line_search='Wolfe',  debug=False):
+        super(FullBatchLBFGS, self).__init__(params, lr, history_size, line_search, debug)
+
+    def step(self, options={}):
+        """
+        Performs a single optimization step.
+
+        Inputs:
+            options (dict): contains options for performing line search
+            
+        General Options:
+            'eps' (float): constant for curvature pair rejection or damping (default: 1e-2)
+            'damping' (bool): flag for using Powell damping (default: False)
+
+        Options for Armijo backtracking line search:
+            'closure' (callable): reevaluates model and returns function value
+            'current_loss' (tensor): objective value at current iterate (default: F(x_k))
+            'gtd' (tensor): inner product g_Ok'd in line search (default: g_Ok'd)
+            'eta' (tensor): factor for decreasing steplength > 0 (default: 2)
+            'c1' (tensor): sufficient decrease constant in (0, 1) (default: 1e-4)
+            'max_ls' (int): maximum number of line search steps permitted (default: 10)
+            'interpolate' (bool): flag for using interpolation (default: True)
+            'inplace' (bool): flag for inplace operations (default: True)
+
+        Options for Wolfe line search:
+            'closure' (callable): reevaluates model and returns function value
+            'current_loss' (tensor): objective value at current iterate (default: F(x_k))
+            'gtd' (tensor): inner product g_Ok'd in line search (default: g_Ok'd)
+            'eta' (float): factor for extrapolation (default: 2)
+            'c1' (float): sufficient decrease constant in (0, 1) (default: 1e-4)
+            'c2' (float): curvature condition constant in (0, 1) (default: 0.9)
+            'max_ls' (int): maximum number of line search steps permitted (default: 10)
+            'interpolate' (bool): flag for using interpolation (default: True)
+            'inplace' (bool): flag for inplace operations (default: True)
+
+        Outputs (depends on line search):
+          . No line search:
+                t (float): steplength
+          . Armijo backtracking line search:
+                F_new (tensor): loss function at new iterate
+                t (tensor): final steplength
+                ls_step (int): number of backtracks
+                closure_eval (int): number of closure evaluations
+                desc_dir (bool): descent direction flag
+                    True: p_k is descent direction with respect to the line search
+                    function
+                    False: p_k is not a descent direction with respect to the line
+                    search function
+                fail (bool): failure flag
+                    True: line search reached maximum number of iterations, failed
+                    False: line search succeeded
+          . Wolfe line search:
+                F_new (tensor): loss function at new iterate
+                g_new (tensor): gradient at new iterate
+                t (float): final steplength
+                ls_step (int): number of backtracks
+                closure_eval (int): number of closure evaluations
+                grad_eval (int): number of gradient evaluations
+                desc_dir (bool): descent direction flag
+                    True: p_k is descent direction with respect to the line search
+                    function
+                    False: p_k is not a descent direction with respect to the line
+                    search function
+                fail (bool): failure flag
+                    True: line search reached maximum number of iterations, failed
+                    False: line search succeeded
+
+        Notes:
+          . If encountering line search failure in the deterministic setting, one
+            should try increasing the maximum number of line search steps max_ls.
+
+        """
+        
+        # load options for damping and eps
+        if('damping' not in options.keys()):
+            damping = False
+        else:
+            damping = options['damping']
+            
+        if('eps' not in options.keys()):
+            eps = 1e-2
+        else:
+            damping = options['eps']
+        
+        # gather gradient
+        grad = self._gather_flat_grad()
+        
+        # update curvature if after 1st iteration
+        state = self.state['global_state']
+        if(state['n_iter'] > 0):
+            self.curvature_update(grad, eps, damping)
+
+        # compute search direction
+        p = self.two_loop_recursion(-grad)
+                    
+        # take step
+        return self._step(p, grad, options=options)

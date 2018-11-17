@@ -28,7 +28,7 @@ import argparse
 import pycutest
 
 from utils import CUTEstProblem
-from LBFGS import LBFGS
+from LBFGS import FullBatchLBFGS
 
 #%% Parameters
 
@@ -97,7 +97,7 @@ for problemName in sorted(problems):
 
     #%% Define optimizer
 
-    optimizer = LBFGS(model.parameters(), lr=1, history_size=history_size, line_search=line_search, debug=True)
+    optimizer = FullBatchLBFGS(model.parameters(), lr=1, history_size=history_size, line_search=line_search, debug=True)
 
     #%% Main training loop
 
@@ -125,9 +125,6 @@ for problemName in sorted(problems):
     # main loop
     for n_iter in range(max_iter):
 
-        # two-loop recursion to compute search direction
-        p = optimizer.two_loop_recursion(-grad)
-
         # define closure for line search
         def closure():
             optimizer.zero_grad()
@@ -137,21 +134,18 @@ for problemName in sorted(problems):
         # perform line search step
         options = {'closure': closure, 'current_loss': obj, 'eta': 2, 'max_ls': max_ls, 'interpolate': interpolate, 'inplace': False}
         if(line_search == 'Armijo'):
-            obj, lr, backtracks, clos_evals, desc_dir, fail = optimizer.step(p, grad, options=options)
+            obj, lr, backtracks, clos_evals, desc_dir, fail = optimizer.step(options=options)
 
             # compute gradient at new iterate
             obj.backward()
             grad = optimizer._gather_flat_grad()
 
         elif(line_search == 'Wolfe'):
-            obj, grad, lr, backtracks, clos_evals, grad_evals, desc_dir, fail = optimizer.step(p, grad, options=options)
+            obj, grad, lr, backtracks, clos_evals, grad_evals, desc_dir, fail = optimizer.step(options=options)
 
         x_new.copy_(model.x())
 
         func_evals += clos_evals
-
-        # curvature update
-        optimizer.curvature_update(grad, eps=1e-2, damping=False)
 
         # compute quantities for checking convergence
         grad_norm = torch.norm(grad)

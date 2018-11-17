@@ -31,7 +31,7 @@ import torch.nn.functional as F
 from keras.datasets import cifar10 # to load dataset
 
 from utils import compute_stats, get_grad
-from LBFGS import LBFGS
+from LBFGS import FullBatchLBFGS
 
 #%% Parameters for L-BFGS training
 
@@ -100,7 +100,7 @@ accfun   = lambda op, y: np.mean(np.equal(predsfun(op), y.squeeze()))*100
 
 #%% Define optimizer
 
-optimizer = LBFGS(model.parameters(), lr=1, history_size=10, line_search='Wolfe', debug=True)
+optimizer = FullBatchLBFGS(model.parameters(), lr=1, history_size=10, line_search='Wolfe', debug=True)
 
 #%% Main training loop
 
@@ -114,9 +114,6 @@ for n_iter in range(max_iter):
 
     # training mode
     model.train()
-
-    # two-loop recursion to compute search direction
-    p = optimizer.two_loop_recursion(-grad)
 
     # define closure for line search
     def closure():
@@ -143,10 +140,7 @@ for n_iter in range(max_iter):
 
     # perform line search step
     options = {'closure': closure, 'current_loss': obj}
-    obj, grad, lr, _, _, _, _, _ = optimizer.step(p, grad, options=options)
-
-    # curvature update
-    optimizer.curvature_update(grad)
+    obj, grad, lr, _, _, _, _, _ = optimizer.step(options)
 
     # compute statistics
     model.eval()

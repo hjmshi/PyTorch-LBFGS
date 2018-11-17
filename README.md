@@ -157,6 +157,12 @@ We recommend implementing this in conjunction with the full-overlap approach wit
 If one uses an Armijo backtracking line search or fixed steplength, we suggest incorporating Powell damping to prevent skipping curvature updates.
 Since stochastic quasi-Newton methods are still an active research area, this is by no means the *final* algorithm. We encourage users to try other variants of stochastic L-BFGS to see what works well.
 
+## Recent Changes
+We've added the following minor features:
+* Full-Batch L-BFGS wrapper.
+* Option for in-place updates.
+* Quadratic interpolation in Wolfe line search backtracking.
+
 ## To Do
 In maintaining this module, we are working to add the following features:
 * Additional initializations of the L-BFGS matrix aside from the Barzilai-Borwein scaling.
@@ -176,14 +182,16 @@ Thanks to Raghu Bollapragada, Jorge Nocedal, and Yuchen Xie for feedback on the 
     Learning." International Conference on Machine Learning. 2018.
 3. Lewis, Adrian S., and Michael L. Overton. "Nonsmooth Optimization via Quasi-Newton
     Methods." Mathematical Programming 141.1-2 (2013): 135-163.
-4. Nocedal, Jorge, and Stephen J. Wright. "Numerical Optimization." Springer New York, 2006.
-5. Schmidt, Mark. "minFunc: Unconstrained Differentiable Multivariate Optimization 
+4. Liu, Dong C., and Jorge Nocedal. "On the Limited Memory BFGS Method for Large Scale Optimization." Mathematical Programming 45.1-3 (1989): 503-528.
+5. Nocedal, Jorge. "Updating Quasi-Newton Matrices With Limited Storage." Mathematics of Computation 35.151 (1980): 773-782.
+6. Nocedal, Jorge, and Stephen J. Wright. "Numerical Optimization." Springer New York, 2006.
+7. Schmidt, Mark. "minFunc: Unconstrained Differentiable Multivariate Optimization 
     in Matlab." Software available at http://www.cs.ubc.ca/~schmidtm/Software/minFunc.html 
     (2005).
-6. Schraudolph, Nicol N., Jin Yu, and Simon Günter. "A Stochastic Quasi-Newton 
+8. Schraudolph, Nicol N., Jin Yu, and Simon Günter. "A Stochastic Quasi-Newton 
     Method for Online Convex Optimization." Artificial Intelligence and Statistics. 
     2007.
-7. Wang, Xiao, et al. "Stochastic Quasi-Newton Methods for Nonconvex Stochastic 
+9. Wang, Xiao, et al. "Stochastic Quasi-Newton Methods for Nonconvex Stochastic 
     Optimization." SIAM Journal on Optimization 27.2 (2017): 927-956.
 
 
