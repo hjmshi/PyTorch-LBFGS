@@ -16,13 +16,13 @@ and weak Wolfe line search for automatic steplength (or learning rate) selection
 ## Getting Started
 To use the L-BFGS optimizer module, simply add `/functions/LBFGS.py` to your current path and use
 ```
-from LBFGS import LBFGS
+from LBFGS import LBFGS, FullBatchLBFGS
 ```
-to import the LBFGS optimizer. 
+to import the L-BFGS or full-batch L-BFGS optimizer, respectively. 
 
 Alternatively, you can add `LBFGS.py` into `torch.optim` on your local PyTorch installation.
 To do this, simply add `LBFGS.py` to `/path/to/site-packages/torch/optim`, then modify `/path/to/site-packages/torch/optim/__init__.py`
-to include the lines `from LBFGS.py import LBFGS` and `del LBFGS`. After restarting your Python kernel, 
+to include the lines `from LBFGS.py import LBFGS, FullBatchLBFGS` and `del LBFGS, FullBatchLBFGS`. After restarting your Python kernel, 
 you will be able to use PyTorch-LBFGS's LBFGS optimizer like any other optimizer in PyTorch.
 
 To see how full-batch, full-overlap, or multi-batch L-BFGS may be easily implemented with a fixed steplength, Armijo backtracking line search, or Wolfe line search, please see the example codes provided in the `/examples/` folder.
@@ -64,6 +64,8 @@ necessary parameters or callable functions to the line search.
 3. `curvature_update(flat_grad, eps=0.2, damping=True)`: Updates the L-BFGS matrix by computing the curvature pair using `flat_grad`
 and the stored <a href="https://www.codecogs.com/eqnedit.php?latex=g_{O_k}" target="_blank"><img src="https://latex.codecogs.com/svg.latex?g_{O_k}" title="g_{O_k}" /></a>
 then checks the Powell damping criterion to possibly reject or modify the curvature pair.
+
+If one is interested in using full-batch or deterministic L-BFGS, one can call the `FullBatchLBFGS`optimizer. The `step(options)` function for `FullBatchLBFGS` wraps the two-loop recursion, curvature updating, and step functions from `LBFGS` to simplify the implementation in this case.
 
 Using quasi-Newton methods in the noisy regime requires more work. We will describe below some of the key features of our implementation that will help stabilize L-BFGS when used in conjunction with stochastic gradients. 
 
