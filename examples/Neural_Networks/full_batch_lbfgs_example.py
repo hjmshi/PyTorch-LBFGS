@@ -8,7 +8,7 @@ optimizer.
 This implementation is CUDA-compatible.
 
 Implemented by: Hao-Jun Michael Shi and Dheevatsa Mudigere
-Last edited 9/21/18.
+Last edited 11/17/18.
 
 Requirements:
     - Keras (for CIFAR-10 dataset)
