@@ -172,7 +172,7 @@ In maintaining this module, we are working to add the following features:
 * Easy parallelization of L-BFGS methods.
 
 ## Acknowledgements
-Thanks to Raghu Bollapragada, Jorge Nocedal, and Yuchen Xie for feedback on the details of this implementation, and Kenjy Demeester, Jaroslav Fowkes, and Dominique Orban for help on installing CUTEst and its Python interface for testing the implementation. Many thanks to Jacob Gardner and Ben Letham for help with additional testing on Gaussian processes in GPyTorch.
+Thanks to Raghu Bollapragada, Jorge Nocedal, and Yuchen Xie for feedback on the details of this implementation, and Kenjy Demeester, Jaroslav Fowkes, and Dominique Orban for help on installing CUTEst and its Python interface for testing the implementation. Many thanks to Jacob Gardner, Geoff Pleiss, and Ben Letham for feedback and help on additional testing on Gaussian processes in GPyTorch.
 
 ## References
 1. Berahas, Albert S., Jorge Nocedal, and Martin Takác. "A Multi-Batch L-BFGS 
