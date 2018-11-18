@@ -894,7 +894,7 @@ class LBFGS(Optimizer):
             return t
         
     def step(self, p_k, g_Ok, g_Sk=None, options={}):
-        return self._step(self, p_k, g_Ok, g_Sk=None, options={})
+        return self._step(p_k, g_Ok, g_Sk, options)
 
 #%% Full-Batch (Deterministic) L-BFGS Optimizer (Wrapper)
 
