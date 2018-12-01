@@ -72,8 +72,9 @@ def closure():
     return loss
 
 loss = closure()
+loss.backward()
 
-training_iter = 5
+training_iter = 10
 for i in range(training_iter):
 
     # perform step and update curvature
