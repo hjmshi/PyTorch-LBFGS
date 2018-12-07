@@ -19,7 +19,7 @@ def is_legal(v):
 
     return legal
 
-def polyinterp(points, x_min_bound=None, x_max_bound=None, plot=False, dtype=torch.float):
+def polyinterp(points, x_min_bound=None, x_max_bound=None, plot=False):
     """
     Gives the minimizer and minimum of the interpolating polynomial over given points
     based on function and derivative information. Defaults to bisection if no critical
@@ -29,7 +29,7 @@ def polyinterp(points, x_min_bound=None, x_max_bound=None, plot=False, dtype=tor
     modifications.
 
     Implemented by: Hao-Jun Michael Shi and Dheevatsa Mudigere
-    Last edited 12/3/18.
+    Last edited 12/6/18.
 
     Inputs:
         points (nparray): two-dimensional array with each point of form [x f g]
@@ -148,11 +148,6 @@ def polyinterp(points, x_min_bound=None, x_max_bound=None, plot=False, dtype=tor
                 plt.plot(x, f)
                 plt.plot(x_sol, f_min, 'x')
 
-    if torch.cuda.is_available():
-        x_sol = torch.tensor(x_sol, dtype=dtype).cuda()
-    else:
-        x_sol = torch.tensor(x_sol, dtype=dtype)
-
     return x_sol
 
 #%% L-BFGS Optimizer
@@ -165,7 +160,7 @@ class LBFGS(Optimizer):
     and Michael Overton's weak Wolfe line search MATLAB code.
 
     Implemented by: Hao-Jun Michael Shi and Dheevatsa Mudigere
-    Last edited 12/3/18.
+    Last edited 12/6/18.
 
     Warnings:
       . Does not support per-parameter options and parameter groups.
@@ -662,14 +657,13 @@ class LBFGS(Optimizer):
                     # if second step, use function value at new point along with 
                     # gradient and function at current iterate
                     elif(ls_step == 1 or not is_legal(F_prev)):
-                        t = polyinterp(np.array([[0, F_k.item(), gtd.item()], [t_new, F_new.item(), np.nan]]), 
-                                       dtype=dtype)
+                        t = polyinterp(np.array([[0, F_k.item(), gtd.item()], [t_new, F_new.item(), np.nan]]))
 
                     # otherwise, use function values at new point, previous point,
                     # and gradient and function at current iterate
                     else:
                         t = polyinterp(np.array([[0, F_k.item(), gtd.item()], [t_new, F_new.item(), np.nan], 
-                                                [t_prev, F_prev.item(), np.nan]]), dtype=dtype)
+                                                [t_prev, F_prev.item(), np.nan]]))
 
                     # if values are too extreme, adjust t
                     if(interpolate):
@@ -816,7 +810,7 @@ class LBFGS(Optimizer):
             # check if search direction is descent direction
             if gtd >= 0:
                 desc_dir = False
-                if ls_debug:
+                if debug:
                     print('Not a descent direction!')
             else:
                 desc_dir = True
@@ -910,8 +904,7 @@ class LBFGS(Optimizer):
 
                 # otherwise interpolate between a and b
                 else:
-                    t = polyinterp(np.array([[alpha, F_a.item(), g_a.item()],[beta, F_b.item(), g_b.item()]]),
-                                   dtype=dtype)
+                    t = polyinterp(np.array([[alpha, F_a.item(), g_a.item()],[beta, F_b.item(), g_b.item()]]))
 
                     # if values are too extreme, adjust t
                     if(beta == float('Inf')):
