@@ -10,7 +10,7 @@ updating, then resamples an entirely independent new sample in the next iteratio
 This implementation is CUDA-compatible.
 
 Implemented by: Hao-Jun Michael Shi and Dheevatsa Mudigere
-Last edited 9/21/18.
+Last edited 10/20/20.
 
 Requirements:
     - Keras (for CIFAR-10 dataset)
@@ -33,30 +33,27 @@ import torch
 import torch.optim
 import torch.nn as nn
 import torch.nn.functional as F
-from keras.datasets import cifar10 # to load dataset
+from tensorflow.keras.datasets import cifar10 # to load dataset
 
 from utils import compute_stats, get_grad
 from LBFGS import LBFGS
 
-#%% Parameters for L-BFGS training
-
+# Parameters for L-BFGS training
 max_iter = 200
 ghost_batch = 128
 batch_size = 8192
 
-#%% Load data
-
+# Load data
 (X_train, y_train), (X_test, y_test) = cifar10.load_data()
 X_train = X_train.astype('float32')
 X_test = X_test.astype('float32')
-X_train = X_train/255
-X_test = X_test/255
+X_train = X_train / 255
+X_test = X_test / 255
 
 X_train = np.transpose(X_train, (0, 3, 1, 2))
 X_test = np.transpose(X_test, (0, 3, 1, 2))
 
-#%% Define network
-
+# Define network
 class ConvNet(nn.Module):
     def __init__(self):
         super(ConvNet, self).__init__()
@@ -74,43 +71,38 @@ class ConvNet(nn.Module):
         x = self.fc2(x)
         return x
 
-#%% Check cuda availability
-        
+# Check cuda availability
 cuda = torch.cuda.is_available()
     
-#%% Create neural network model
-        
-if(cuda):
+# Create neural network model
+if cuda:
     torch.cuda.manual_seed(2018)
     model = ConvNet().cuda() 
 else:
     torch.manual_seed(2018)
     model = ConvNet()
     
-#%% Define helper functions
+# Define helper functions
 
 # Forward pass
-if(cuda):
+if cuda:
     opfun = lambda X: model.forward(torch.from_numpy(X).cuda())
 else:
     opfun = lambda X: model.forward(torch.from_numpy(X))
 
 # Forward pass through the network given the input
-if(cuda):
+if cuda:
     predsfun = lambda op: np.argmax(op.cpu().data.numpy(), 1)
 else:
     predsfun = lambda op: np.argmax(op.data.numpy(), 1)
 
 # Do the forward pass, then compute the accuracy
-accfun   = lambda op, y: np.mean(np.equal(predsfun(op), y.squeeze()))*100
+accfun = lambda op, y: np.mean(np.equal(predsfun(op), y.squeeze())) * 100
 
-#%% Define optimizer
+# Define optimizer
+optimizer = LBFGS(model.parameters(), lr=1., history_size=10, line_search='Armijo', debug=True)
 
-optimizer = LBFGS(model.parameters(), lr=1, history_size=10, line_search='Armijo', debug=True)
-
-#%% Main training loop
-
-# main loop
+# Main training loop
 for n_iter in range(max_iter):
     
     # training mode
@@ -131,16 +123,16 @@ for n_iter in range(max_iter):
         
         optimizer.zero_grad()
         
-        if(torch.cuda.is_available()):
+        if cuda:
             loss_fn = torch.tensor(0, dtype=torch.float).cuda()
         else:
             loss_fn = torch.tensor(0, dtype=torch.float)
         
-        for subsmpl in np.array_split(Sk, max(int(batch_size/ghost_batch), 1)):
-                        
+        for subsmpl in np.array_split(Sk, max(int(batch_size / ghost_batch), 1)):
+
             ops = opfun(X_train[subsmpl])
             
-            if(torch.cuda.is_available()):
+            if cuda:
                 tgts = torch.from_numpy(y_train[subsmpl]).cuda().long().squeeze()
             else:
                 tgts = torch.from_numpy(y_train[subsmpl]).long().squeeze()
@@ -166,5 +158,5 @@ for n_iter in range(max_iter):
                                                     y_test, opfun, accfun, ghost_batch=128)
             
     # print data
-    print('Iter:',n_iter+1, 'lr:', lr, 'Training Loss:', train_loss, 
-          'Test Loss:', test_loss, 'Test Accuracy:', test_acc)
+    print('Iter:', n_iter + 1, 'lr:', lr, 'Training Loss:', train_loss, 'Test Loss:', test_loss,
+          'Test Accuracy:', test_acc)
